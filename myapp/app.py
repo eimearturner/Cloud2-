@@ -92,26 +92,36 @@ def images_remove(id):
 def containers_remove(id):
     """
     Delete a specific container - must be already stopped/killed
+    curl -s -X DELETE -H 'Content-Type: application/json' http://localhost:8080/containers/b6cd8ea512c8
     """
-    resp = ''
+    #rm command gets rid of a container
+    resp = docker('rm', id)
     return Response(response=resp, mimetype="application/json")
 
 @app.route('/containers', methods=['DELETE'])
 def containers_remove_all():
-    """
-    Force remove all containers - dangrous!
-    """
-    resp = ''
-    return Response(response=resp, mimetype="application/json")
+    final = docker('ps', '-a')
+    #call the method witht the command 
+    containers = docker_ps_to_array(final)
+
+    #loop through each container,
+    for container in containers:
+        docker('stop', container['id'])
+    for container in containers:
+        docker('rm', container['id'])
+    return Response(response='All containers removed', mimetype="application/json")
 
 @app.route('/images', methods=['DELETE'])
 def images_remove_all():
-    """
-    Force remove all images - dangrous!
-    """
- 
-    resp = ''
-    return Response(response=resp, mimetype="application/json")
+    #dont need to feed resp anywhere, it's jsut a string
+    final = docker('images')
+
+    #call method
+    images = docker_images_to_array(final)
+    #loop through to get all of them, using rmi command
+    for image in images:
+        docker('rmi', image['id'], '-f')
+    return Response(response='Removed the images', mimetype="application/json")
 
 
 @app.route('/containers', methods=['POST'])
@@ -131,13 +141,18 @@ def containers_create():
 
 @app.route('/images', methods=['POST'])
 def images_create():
-    """
-    Create image (from uploaded Dockerfile)
-    curl -H 'Accept: application/json' -F file=@Dockerfile http://localhost:8080/images
-    """
+    #making an image from the uploaded docker file
     dockerfile = request.files['file']
-    
-    resp = ''
+    dpath = mkdtemp()
+
+
+    filename = secure_filename(dockerfile.filename)
+    #joining the secure file name and the mkdtemp into variable
+    path = os.path.join(dpath, filename)
+    c_path = os.path.join(dpath, '.')
+    dockerfile.save(path)
+
+    resp = docker('build', '-t', filename.lower(), '-f', path, c_path)
     return Response(response=resp, mimetype="application/json")
 
 
@@ -161,11 +176,9 @@ def containers_update(id):
 
 @app.route('/images/<id>', methods=['PATCH'])
 def images_update(id):
-    """
-    Update image attributes (support: name[:tag])  tag name should be lowercase only
-    curl -s -X PATCH -H 'Content-Type: application/json' http://localhost:8080/images/7f2619ed1768 -d '{"tag": "test:1.0"}'
-    """
-    resp = ''
+    patchresult = request.get_json(force=True)
+    #docker tag  'tags' and image with a certain id to the a certain repo, in this case, the request
+    resp = docker('tag', id, patchresult['tag'])
     return Response(response=resp, mimetype="application/json")
 
 
