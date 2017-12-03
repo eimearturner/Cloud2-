@@ -45,45 +45,45 @@ def containers_index():
         output = docker('ps', '-a')
         resp = json.dumps(docker_ps_to_array(output))
 
-    #resp = ''
+   
     return Response(response=resp, mimetype="application/json")
 
 @app.route('/images', methods=['GET'])
 def images_index():
-    """
-    List all images 
-    
-    Complete the code below generating a valid response. 
-    """
-    
-	
-    resp = ''
+    imageresult = docker_images_to_array(docker('images'))
+    resp = json.dumps(imageresult)
+    return Response(response=resp, mimetype="application/json")
+
+#I added the nodes GET
+@app.route('/nodes', methods = ['GET'])
+def get_nodes():
+    #the command for listing nodes is ls
+    res = docker_nodes_to_array(docker('node', 'ls'))
+    resp = json.dumps(res)
+    return Response(response=resp, mimetype="application/json")
+
+#I added the services GET based in the images get
+@app.route('/services', methods = ['GET'])
+def get_services():
+    res = docker_services_to_array(docker('service', 'ls'))
+    resp = json.dumps(res)
     return Response(response=resp, mimetype="application/json")
 
 @app.route('/containers/<id>', methods=['GET'])
 def containers_show(id):
-    """
-    Inspect specific container
-    """
-
-    resp = ''
-
+    #docker inspect can get a certain instances name, so I pass that command in
+    resp = docker('inspect', id)
     return Response(response=resp, mimetype="application/json")
 
 @app.route('/containers/<id>/logs', methods=['GET'])
 def containers_log(id):
-    """
-    Dump specific container logs
-    """
-    resp = ''
+    #command is docker logs and id
+    res = docker_logs_to_object(id,docker('logs', id))
+    resp = json.dumps(res)
     return Response(response=resp, mimetype="application/json")
-
 
 @app.route('/images/<id>', methods=['DELETE'])
 def images_remove(id):
-    """
-    Delete a specific image
-    """
     docker ('rmi', id)
     resp = '{"id": "%s"}' % id
     return Response(response=resp, mimetype="application/json")
@@ -141,8 +141,6 @@ def images_create():
     return Response(response=resp, mimetype="application/json")
 
 
-
-
 @app.route('/containers/<id>', methods=['PATCH'])
 def containers_update(id):
     """
@@ -177,28 +175,47 @@ def docker(*args):
         cmd.append(sub)
     process = Popen(cmd, stdout=PIPE, stderr=PIPE)
     stdout, stderr = process.communicate()
-    if stderr.startswith('Error'):
+    err = stderr.decode('utf-8')
+    out = stdout.decode('utf-8')
+    if stderr.startswith(b'Error'):
         print('Error: {0} -> {1}'.format(' '.join(cmd), stderr))
     return stderr + stdout
 
-# 
-# Docker output parsing helpers
-#
-
-#
-# Parses the output of a Docker PS command to a python List
-# 
+#changed the image name and port var with decodes because i was getting a type error
 def docker_ps_to_array(output):
     all = []
     for c in [line.split() for line in output.splitlines()[1:]]:
         each = {}
-        each['id'] = c[0]
-        each['image'] = c[1]
-        each['name'] = c[-1]
-        each['ports'] = c[-2]
+        each['id'] = c[0].decode('utf-8')
+        each['image'] = c[1].decode('utf-8')
+        each['name'] = c[-1].decode('utf-8')
+        each['ports'] = c[-2].decode('utf-8')
         all.append(each)
     return all
-
+#similar to getting the nodes but with different service parameters
+def docker_services_to_array(output):
+    all = []
+    for c in [line.split() for line in output.splitlines()[1:]]:
+        each = {}
+        each['id'] = c[0].decode('utf-8')
+        each['name'] = c[1].decode('utf-8')
+        each['mode'] = c[2].decode('utf-8')
+        each['replicas'] = c[3].decode('utf-8')
+        each['image'] = c[4].decode('utf-8')
+        all.append(each)
+    return all
+#I took the structure of ps_to_array to do this method
+#but with different variables to hold parts of nodes
+def docker_nodes_to_array(output):
+    all = []
+    for c in [line.split() for line in output.splitlines()[1:]]:
+        each = {}
+        each['id'] = c[0].decode('utf-8')
+        each['hostname'] = c[1].decode('utf-8')
+        each['status'] = c[2].decode('utf-8')
+        each['available'] = c[3].decode('utf-8')
+        all.append(each)
+    return all
 #
 # Parses the output of a Docker logs command to a python Dictionary
 # (Key Value Pair object)
@@ -213,14 +230,13 @@ def docker_logs_to_object(id, output):
 
 #
 # Parses the output of a Docker image command to a python List
-# 
 def docker_images_to_array(output):
     all = []
     for c in [line.split() for line in output.splitlines()[1:]]:
         each = {}
-        each['id'] = c[2]
-        each['tag'] = c[1]
-        each['name'] = c[0]
+        each['id'] = c[2].decode('utf-8')
+        each['tag'] = c[1].decode('utf-8')
+        each['name'] = c[0].decode('utf-8')
         all.append(each)
     return all
 
