@@ -84,8 +84,7 @@ def containers_log(id):
 
 @app.route('/images/<id>', methods=['DELETE'])
 def images_remove(id):
-    docker ('rmi', id)
-    resp = '{"id": "%s"}' % id
+    resp = docker('rmi', id)
     return Response(response=resp, mimetype="application/json")
 
 @app.route('/containers/<id>', methods=['DELETE'])
